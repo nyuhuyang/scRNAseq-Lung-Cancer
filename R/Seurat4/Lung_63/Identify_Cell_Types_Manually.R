@@ -7,12 +7,11 @@ library(cowplot)
 library(stringr)
 library(openxlsx)
 source("https://raw.githubusercontent.com/nyuhuyang/SeuratExtra/master/R/Seurat4_functions.R")
-source("https://raw.githubusercontent.com/nyuhuyang/SeuratExtra/master/R/Seurat4_differential_expression.R")
 path <- paste0("output/",gsub("-","",Sys.Date()),"/")
 if(!dir.exists(path))dir.create(path, recursive = T)
 # load data
-object = readRDS(file = "data/Lung_SCT_63_20220408.rds")
-meta.data = readRDS(file = "data/Lung_63_20220408_meta.data_v2.rds")
+object = readRDS(file = "data/Lung_SCT_63_20220606.rds")
+meta.data = readRDS(file = "output/Lung_63_20220408_meta.data_v2.rds")
 DefaultAssay(object) = "SCT"
 #meta.data = object@meta.data
 #umap = object[["umap"]]@cell.embeddings
@@ -75,10 +74,15 @@ for(m in 1:nrow(df_annotation4)){
     print(paste (res,"at",cl,df_annotation4$condition[m],"------->",change_to))
 }
 
+table((meta.data$Cell_label %in% "MC") & (meta.data$UMAP1 < -5 | meta.data$UMAP1  > 3 |  meta.data$UMAP2 > 0 | meta.data$UMAP2  < -5)
+)
+table(meta.data$Cell_label %in% "TASC")
 #  164 170 ======
 #reName = meta.data$Cell_label %in% c("164","170")
 #meta.data[reName,"Cell_label"] = meta.data[reName,"Cell_label"]
 
+df_annotation <- readxl::read_excel("doc/Annotations/20220602_Annotations-3000-100-01-1.5-RS-06-03-22 HY.xlsx",
+                                    sheet = "63-sample annotations")
 
 df_annotation = df_annotation %>% dplyr::filter(!is.na(Cell_label)) %>% dplyr::filter(!duplicated(Cell_label))
 
@@ -87,8 +91,20 @@ for(Cell_type in Cell_types){
     meta.data[,Cell_type] = plyr::mapvalues(meta.data$Cell_label,
                                             from = pull(df_annotation[,"Cell_label"]),
                                             to = pull(df_annotation[,Cell_type]))
+    meta.data[,Cell_type] %<>% factor(levels = unique(pull(df_annotation[,Cell_type])))
 }
+meta.data$Cell_label %<>% factor(levels = df_annotation$Cell_label)
 saveRDS(meta.data[,-c(46:60)], file = "output/Lung_63_20220408_meta.data_v3.rds")
+
+
+meta.data1 = readRDS(file = "output/Lung_63_20220408_meta.data_v4.rds")
+
+Cell_types <- c("Cell_label","Cell_type","Family","Superfamily","Pathology")
+for(Cell_type in Cell_types){
+    meta.data1[,Cell_type] = meta.data[,Cell_type]
+}
+    
+saveRDS(meta.data1, file = "output/Lung_63_20220408_meta.data_v4.rds")
 
 
 # add color

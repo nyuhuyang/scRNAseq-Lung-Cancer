@@ -21,12 +21,12 @@ if(!dir.exists(path)) dir.create(path, recursive = T)
 #======1.1 Setup the Seurat objects =========================
 # read sample summary list
 # read sample summary list
-df_samples <- readxl::read_excel("output/20220408/20220406_scRNAseq_info.xlsx")
+df_samples <- readxl::read_excel("output/20220606/20220406_scRNAseq_info.xlsx")
 df_samples = as.data.frame(df_samples)
 colnames(df_samples) %<>% tolower()
 nrow(df_samples)
 #======1.2 load  Seurat =========================
-object = readRDS(file = "data/Lung_63_20220408.rds")
+object = readRDS(file = "data/Lung_63_20220606.rds")
 
 table(df_samples$sample %in% object$orig.ident)
 meta.data = object@meta.data
@@ -59,23 +59,15 @@ object@meta.data = meta.data
 object$age %<>% as.integer()
 object$age.bracket = cut(object$age, c(0,20,30,40,50,600,70,80))
 object$age.bracket %<>% droplevels()
-
-DefaultAssay(object) = "SCT"
-s.genes <- cc.genes$s.genes %>% gsub("MLF1IP","CENPU",.)
-g2m.genes <- cc.genes$g2m.genes %>% plyr::mapvalues(from = c("FAM64A", "HN1"),
-                                                    to = c("PIMREG","JPT1"))
-object %<>% CellCycleScoring(s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
-colnames(object@meta.data) %<>% sub("Phase","cell.cycle.phase",.)
-
-
+rm(meta.data);GC()
 # Determine the ‘dimensionality’ of the dataset  =========
 npcs = 100
 
 DefaultAssay(object) <- "RNA"
 object %<>% NormalizeData()
-
+#-------- skip --------------------------
 object <- FindVariableFeatures(object = object, selection.method = "vst",
-                               num.bin = 20, nfeatures = 2000,
+                               num.bin = 20, nfeatures = 3000,
                                mean.cutoff = c(0.1, 8), dispersion.cutoff = c(1, Inf))
 object %<>% ScaleData(verbose = FALSE)
 object %<>% RunPCA(npcs = 100, verbose = FALSE)
@@ -98,11 +90,16 @@ npcs = 98
 npcs = 100
 
 #======1.6 Performing SCTransform and integration =========================
-
+sort( sapply(ls(),function(x){format(object.size(get(x)),"GB")}))
 format(object.size(object),unit = "GB")
-options(future.globals.maxSize= object.size(object)*10)
-object %<>% SCTransform(method = "glmGamPoi", vars.to.regress = "percent.mt", verbose = TRUE)
+options(future.globals.maxSize= object.size(object)*20)
+object %<>% SCTransform(method = "glmGamPoi", vars.to.regress = "percent.mt",
+                        verbose = TRUE,conserve.memory = TRUE)
 DefaultAssay(object) <- "SCT"
+object <- FindVariableFeatures(object = object, selection.method = "vst",
+                               num.bin = 20, nfeatures = 3000,
+                               mean.cutoff = c(0.1, 8), dispersion.cutoff = c(1, Inf))
+
 object %<>% ScaleData(verbose = FALSE)
 object %<>% RunPCA(verbose = T,npcs = npcs)
 
@@ -110,7 +107,23 @@ jpeg(paste0(path,"S1_ElbowPlot_SCT.jpeg"), units="in", width=10, height=7,res=60
 ElbowPlot(object, ndims = npcs)
 dev.off()
 
-saveRDS(object, file = "data/Lung_63_20220408.rds")
+
+object %<>% FindNeighbors(reduction = "pca",dims = 1:npcs)
+resolutions = c( 0.01, 0.1, 0.2, 0.5,0.8, 0.9, 1, 2, 3,4,5)
+for(i in 1:length(resolutions)){
+    object %<>% FindClusters(resolution = resolutions[i], algorithm = 1)
+    print(table(object@meta.data[,paste0("SCT_snn_res.",resolutions[i])]))
+    Progress(i,length(resolutions))
+}
+
+s.genes <- cc.genes$s.genes %>% gsub("MLF1IP","CENPU",.)
+g2m.genes <- cc.genes$g2m.genes %>% plyr::mapvalues(from = c("FAM64A", "HN1"),
+                                                    to = c("PIMREG","JPT1"))
+object %<>% CellCycleScoring(s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
+colnames(object@meta.data) %<>% sub("Phase","cell.cycle.phase",.)
+
+
+saveRDS(object, file = "data/Lung_63_20220606.rds")
 
 #======1.8 UMAP from harmony =========================
 DefaultAssay(object) = "SCT"
@@ -131,16 +144,11 @@ object[["harmony.umap"]] <- CreateDimReducObject(embeddings = object@reductions[
 #                                                 key = "harmonytSNE_", assay = DefaultAssay(object))
 
 npcs = 100
-object %<>% RunUMAP(reduction = "pca", dims = 1:npcs)
+object %<>% RunUMAP(reduction = "pca", dims = 1:100,min.dist = 0.1,spread = 1.5,
+                    return.model = TRUE)
 #system.time(object %<>% RunTSNE(reduction = "pca", dims = 1:npcs))
-object %<>% FindNeighbors(reduction = "pca",dims = 1:100)
-resolutions = c( 0.01, 0.1, 0.2, 0.5,0.8, 0.9, 1, 2, 3,4,5)
-for(i in 1:length(resolutions)){
-    #object %<>% FindClusters(resolution = resolutions[i], algorithm = 1)
-    print(table(object@meta.data[,paste0("SCT_snn_res.",resolutions[i])]))
-    #Progress(i,length(resolutions))
-}
-saveRDS(object, file = "data/Lung_63_20220408.rds")
+
+saveRDS(object, file = "data/Lung_63_20220606.rds")
 saveRDS(object@meta.data, file = "data/Lung_63_20220408_meta.data_v2.rds")
 
 # ======1.8.5 Unimodal UMAP Projection =========================
@@ -184,17 +192,36 @@ object$Family = plyr::mapvalues(object$Cell_subtype,
 object$Superfamily = plyr::mapvalues(object$Cell_subtype,
                                      from = meta.data$Cell_subtype,
                                      to = meta.data$Superfamily)
-saveRDS(object, file = "data/Lung_63_20220408.rds")
+saveRDS(object, file = "data/Lung_63_20220606.rds")
 
 
 #=======1.9 save SCT only =======================================
+Lung = readRDS("data/Lung_SCT_63_20220408.rds")
+object@commands$RunUMAP.SCT.harmony = Lung@commands$RunUMAP.SCT.harmony
+object@reductions$harmony = Lung@reductions$harmony
+object@reductions$harmony.umap = Lung@reductions$harmony.umap
+object@reductions$ref.pca = Lung@reductions$ref.pca
+object@reductions$ref.umap = Lung@reductions$ref.umap
+
+object[["umap"]] = NULL
+file.name = "../scRNAseq-Lung/output/20220420/3000/umap_cs100_dist.0.1_spread.1.5.rds"
+umap  = readRDS(file.name)[[1]]
+umap@key = "UMAP_"
+colnames(umap@cell.embeddings) = c("UMAP_1","UMAP_2")
+object[["umap"]] <- umap
+
+meta.data = readRDS(file = "output/Lung_63_20220408_meta.data_v3.rds")
+table(rownames(object@meta.data) == rownames(meta.data))
+object@meta.data = meta.data
+object[["SCT"]]@scale.data = matrix(0,0,0)
+
 format(object.size(object),unit = "GB")
+saveRDS(object, file = "data/Lung_63_20220606.rds")
 
 format(object.size(object@assays$RNA),unit = "GB")
 object[['RNA']] <- NULL
-object[["SCT"]]@counts = matrix(0,0,0)
 object[["SCT"]]@scale.data = matrix(0,0,0)
 format(object.size(object),unit = "GB")
-saveRDS(object, file = "data/Lung_SCT_63_20220408.rds")
+saveRDS(object, file = "data/Lung_SCT_63_20220606.rds")
 
 

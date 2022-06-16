@@ -24,7 +24,7 @@ df_samples = as.data.frame(df_samples)
 colnames(df_samples) %<>% tolower()
 nrow(df_samples)
 # check missing data
-read.path = "data/scRNA-seq/counts"
+read.path = "../scRNAseq-Lung/data/scRNA-seq/counts"
 current <- list.files(read.path)
 (missing_data <- df_samples$sample[!(df_samples$sample %in% current)])
 
@@ -71,7 +71,7 @@ Seurat_list <- pblapply(df_samples$sample, function(s){
 names(Seurat_list) = df_samples$sample
 #========1.1.3 g1 QC plots before filteration=================================
 object <- Reduce(function(x, y) merge(x, y, do.normalize = F), Seurat_list)
-#remove(Seurat_list);GC()
+remove(Seurat_list);GC()
 # read and select mitochondial genes
 mito <- "^MT-"
 message("mito.genes:")
@@ -147,4 +147,4 @@ dev.off()
 
 #====
 format(object.size(object),unit = "GB")
-saveRDS(object, file = "data/Lung_63_20220408.rds")
+saveRDS(object, file = "data/Lung_63_20220606.rds")

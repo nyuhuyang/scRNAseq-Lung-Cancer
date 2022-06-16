@@ -14,9 +14,8 @@ if (length(slurm_arrayid)!=1)  stop("Exact one argument must be supplied!")
 args <- as.integer(as.character(slurm_arrayid))
 print(paste0("slurm_arrayid=",args))
 
-object = readRDS(file ="data/Lung_SCT_63_20220408.rds")
-object@meta.data = readRDS(file = "data/Lung_63_20220408_meta.data_v2.rds")
-(step = c("resolutions","Cell_subtype")[1])
+object = readRDS(file ="data/Lung_SCT_63_20220606.rds")
+(step = c("resolutions","Adj_Dex_Cont","Cell_label")[3])
 
 if(step == "resolutions"){# 32GB
     opts = data.frame(ident = c(rep("SCT_snn_res.0.01",6),
@@ -72,12 +71,10 @@ if(step == "resolutions"){# 32GB
 }
 
 
-if(step == "Cell_subtype"){# 32~64GB
+if(step == "Adj_Dex_Cont"){# 32~64GB
    DefaultAssay(object) = "SCT"
-   object %<>% subset(subset = Cell_subtype != "Un" &
-                           orig.ident %in% c("WC_30_T_Adj_Dex",
-                                             "WC_30_T_Adj_Cont")
-    )
+   object %<>% subset(subset = Cell_label != "Un" &
+                          Doublets == "Singlet")
    Cell_subtypes = c("All",sort(unique(object$Cell_subtype)))
    type = Cell_subtypes[args]
     if(type != "All") object %<>% subset(subset = Cell_subtype == type)
@@ -103,3 +100,60 @@ if(step == "Cell_subtype"){# 32~64GB
     
     write.csv(markers,paste0(save_path,arg,"-",type,"-Dex_vs_Count",".csv"))
 }
+
+
+if(step == "Cell_label"){# 32~64GB
+    meta.data = readRDS(file = "output/Lung_63_20220408_meta.data_v4.rds")
+    table(rownames(object@meta.data) == rownames(meta.data))
+    
+    object@meta.data = meta.data
+    
+    DefaultAssay(object) = "SCT"
+    object %<>% subset(subset = Cell_subtype != "Un"
+                       &  Doublets == "Singlet"
+    )
+
+    opts = data.frame(ident = c(rep("Cell_label",66),
+                                rep("Cell_type",31),
+                                rep("Family",9),
+                                rep("Superfamily",4)),
+                      num = c(1:66,
+                              1:31,
+                              1:9,
+                              1:4)
+    )
+    opt = opts[args,]
+    
+    #==========================
+    Idents(object) = opt$ident
+    opt$type = sort(levels(object))[opt$num]
+    print(opt)
+    
+    
+    markers = FindMarkers_UMI(object, ident.1 = opt$type,
+                              group.by = opt$ident,
+                              assay = "SCT",
+                              min.pct = 0.01,
+                              logfc.threshold = 0.1,
+                              only.pos = F#,
+                              #test.use = "MAST",
+                              #latent.vars = "nFeature_SCT"
+    )
+
+    markers$cluster = as.character(opt$type)
+    markers$Cell_category = opt$ident
+    num = opt$num
+    if(args < 10) num = paste0("0",num)
+    if(args < 100) num = paste0("0",num)
+    
+    arg = args
+    if(args < 10) arg = paste0("0",arg)
+    if(args < 100) arg = paste0("0",arg)
+    
+    save_path <- paste0(path,step,"/")
+    if(!dir.exists(save_path)) dir.create(save_path, recursive = T)
+    
+    write.csv(markers,paste0(save_path,arg,"-",opt$ident,"-",num,".",opt$type, ".csv"))
+}
+
+
