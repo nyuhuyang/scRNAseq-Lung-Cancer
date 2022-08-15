@@ -102,8 +102,8 @@ if(step == "Adj_Dex_Cont"){# 32~64GB
 }
 
 
-if(step == "Cell_label"){# 32~64GB
-    meta.data = readRDS(file = "output/Lung_63_20220408_meta.data_v4.rds")
+if(step == "celltype.3"){# 32~64GB
+    meta.data = readRDS(file = "output/Lung_63_20220408_meta.data_v5.rds")
     table(rownames(object@meta.data) == rownames(meta.data))
     
     object@meta.data = meta.data
@@ -113,13 +113,15 @@ if(step == "Cell_label"){# 32~64GB
                        &  Doublets == "Singlet"
     )
 
-    opts = data.frame(ident = c(rep("Cell_label",66),
-                                rep("Cell_type",31),
-                                rep("Family",9),
+    opts = data.frame(ident = c(rep("celltype.3",71),
+                                rep("celltype.2",66),
+                                rep("celltype.1",32),
+                                rep("Family",10),
                                 rep("Superfamily",4)),
-                      num = c(1:66,
-                              1:31,
-                              1:9,
+                      num = c(1:71,
+                              1:66,
+                              1:32,
+                              1:10,
                               1:4)
     )
     opt = opts[args,]
@@ -135,7 +137,7 @@ if(step == "Cell_label"){# 32~64GB
                               assay = "SCT",
                               min.pct = 0.01,
                               logfc.threshold = 0.1,
-                              only.pos = F#,
+                              only.pos = T#,
                               #test.use = "MAST",
                               #latent.vars = "nFeature_SCT"
     )

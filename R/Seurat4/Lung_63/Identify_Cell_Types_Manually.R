@@ -28,16 +28,15 @@ colnames(umap@cell.embeddings) = c("UMAP_1","UMAP_2")
 object[["umap"]] <- umap
 
 
-SCT_snn_res <- grep("SCT_snn_res",colnames(meta.data),value =T)
-for(res in SCT_snn_res){
-    meta.data[,res] %<>% as.character() %>% as.integer() %>% as.factor()
-}
-
 meta.data %<>% cbind(object[["umap"]]@cell.embeddings)
 meta.data %<>% cbind(meta.data_exp)
 table(rownames(meta.data) == colnames(object))
 #======== rename ident =================
 #meta.data = readRDS(file = "output/Lung_63_20220408_meta.data_v3.rds")
+SCT_snn_res <- grep("SCT_snn_res",colnames(meta.data),value =T)
+for(res in SCT_snn_res){
+    meta.data[,res] %<>% as.character() %>% as.integer() %>% as.factor()
+}
 
 df_annotation <- readxl::read_excel("doc/Annotations/20220602_Annotations-3000-100-01-1.5-RS-06-03-22 HY.xlsx",
                                     sheet = "Sheet1")
@@ -80,10 +79,7 @@ table(meta.data$Cell_label %in% "TASC")
 #  164 170 ======
 #reName = meta.data$Cell_label %in% c("164","170")
 #meta.data[reName,"Cell_label"] = meta.data[reName,"Cell_label"]
-
-df_annotation <- readxl::read_excel("doc/Annotations/20220602_Annotations-3000-100-01-1.5-RS-06-03-22 HY.xlsx",
-                                    sheet = "63-sample annotations")
-
+ 
 df_annotation = df_annotation %>% dplyr::filter(!is.na(Cell_label)) %>% dplyr::filter(!duplicated(Cell_label))
 
 Cell_types <- c("Cell_type","Family","Superfamily","Pathology")
@@ -159,28 +155,138 @@ df_color = t(data.frame(
     c("Trm","#f1c232"),#fc8e66
     c("T-un","#b1bcc5"),
     c("Un","#DEEBF7")))#yes
-df_color %<>% as.data.frame
-rownames(df_color) = NULL
-colnames(df_color) = c("Cell_label","Cell_label.colors")
-table(duplicated(df_color$Cell_label.colors))
 
-meta.data_u = meta.data[!duplicated(meta.data$Cell_label),]
-meta.data1 = meta.data_u[!(meta.data_u$Cell_label %in% df_color$Cell_label),];print(dim(meta.data1))
-meta.data2 = meta.data_u[(meta.data_u$Cell_label %in% df_color$Cell_label),];print(dim(meta.data2))
+#===================================================================================
+object = readRDS(file = "data/Lung_SCT_63_20220606.rds")
+meta.data = readRDS(file = "output/Lung_63_20220408_meta.data_v4.rds")
+table(rownames(object@meta.data) == rownames(meta.data))
+DefaultAssay(object) = "SCT"
+#meta.data = object@meta.data
+#umap = object[["umap"]]@cell.embeddings
+meta.data_exp = FetchData(object, vars = unique(c("ACKR1","ACP5","ACTA2","AGER","APOC1","BCHE","C1QB",
+                                           "CA4","CCL18","CCL3","CCL4","CCNO","CCL3",
+                                           "CCL4","CCR7","CCR3","CCR4","CD1A","CD1C","CD3D","CD3E",
+                                           "CD4","CD83","CD8A","CD8B","CDH5","CLDN5",
+                                           "COX4I2","CXCL10","CXCL8","CXCL9","CXCR6",
+                                           "DES","EDNRB","EREG","FABP4","FCER1A","GJA5",
+                                           "GNLY","HES6","IFNG","IGFBP3","IL1B",
+                                           "IL1RL1","KCNK3","KLRD1",
+                                           "KRT15","KRT5","LTB","LTF","MAL","MARCO",
+                                           "MSR1","MUC5AC","MUC5B","NKG7",
+                                           "NOTCH3","PRB3","PRR4","S100A8","S100A9",
+                                           "SAA1","SAA2","SAA4","SCGB1A1","SCGB3A2",
+                                           "SELE","SERPINB3","SERPINB4","SFTPB","SFTPC",
+                                           "SPP1","TAGLN")))
+object[["umap"]] = NULL
+file.name = "output/20220420/3000/umap_cs100_dist.0.1_spread.1.5.rds"
+umap  = readRDS(file.name)[[1]]
+umap@key = "UMAP_"
+colnames(umap@cell.embeddings) = c("UMAP_1","UMAP_2")
+object[["umap"]] <- umap
+meta.data.v5 <- meta.data
+meta.data %<>% cbind(object[["umap"]]@cell.embeddings)
+meta.data %<>% cbind(meta.data_exp)
+table(rownames(meta.data) == colnames(object))
 
-meta.data$Cell_label.colors =  plyr::mapvalues(meta.data$Cell_label,
-                                                 from = df_color$Cell_label,
-                                                 to = df_color$Cell_label.colors)
-
-df_annotation <- readxl::read_excel("doc/Annotations/20210917_20UMAP res0.8 annotations.xlsx",
+df_annotation <- readxl::read_excel("doc/Annotations/63-samples annotation optimization - part 1 and 2-YH v2 RS.xlsx",
                                     sheet = "Sheet1")
-Cell_labels <- c("Cell_label","Cell_type","UMAP_land","Family","Superfamily")
 
-df_annotation = df_annotation[order(df_annotation$Cell_label),Cell_labels]
-df_annotation = df_annotation[!duplicated(df_annotation$Cell_label),]
-for(Cell_label in Cell_labels[2:5]){
-    meta.data[,Cell_label] = plyr::mapvalues(meta.data$Cell_label,
-                                            from = pull(df_annotation[,"Cell_label"]),
-                                            to = pull(df_annotation[,Cell_label]))
+colnames(meta.data) %<>% gsub("UMAP_","UMAP",.)
+df_annotation$condition[is.na(df_annotation$condition)] = "TRUE"
+df_annotation$`total cells` = NULL
+df_annotation$`list.of.sample.IDs` = NULL
+Cell_label = unique(c(df_annotation$Cell_label,df_annotation$label))
+table(Cell_label %in% meta.data$Cell_label)
+Cell_label[!(Cell_label %in% meta.data$Cell_label)]
+total_cells = c()
+list_of_sample_IDs = c()
+meta.data$Cell_label %<>% as.character()
+for(m in 1:nrow(df_annotation)){
+    cl = pull(df_annotation[m,"Cell_label"])
+    step = pull(df_annotation[m,"steps"])
+    change_to = pull(df_annotation[m,"label"])
+    
+    select_id = meta.data %>% dplyr::filter(Cell_label %in% cl) %>% 
+        dplyr::filter(eval(parse(text = df_annotation$condition[m])))
+    if(nrow(select_id) == 0) {
+        total_cells[m] = nrow(select_id)
+        list_of_sample_IDs[m] = "0"
+        next
+    }
+    meta.data[rownames(select_id),"Cell_label"] = change_to
+    total_cells[m] = nrow(select_id)
+    list_of_sample_IDs[m] = gsub("-.*","",rownames(select_id)) %>% 
+                            table %>% 
+                            as.data.frame.table %>% 
+                            apply(1,function(x) paste(x,collapse= " x ")) %>% 
+                            paste(collapse= " cells, ") %>%
+                            paste("cells")
+    print(paste ("Cell_label at",cl,df_annotation$condition[m],"------->",change_to,
+                 "total cells = ",total_cells[m],
+                 " list of sample IDs = ", list_of_sample_IDs[m]))
 }
+# save annotation notes
+meta.data.v5$celltype.3 = meta.data$Cell_label
+meta.data.v5$celltype.3 %<>% gsub("En-SM","En-sm",.)
+meta.data.v5$celltype.3 %<>% gsub("En-ca-F4","En-ca,Fb-a",.)
+saveRDS(meta.data.v5,file = "output/Lung_63_20220408_meta.data_v5.rds")
 
+df_annotation %<>% cbind(data.frame("total cells" = total_cells))
+df_annotation %<>% cbind(data.frame("list of sample IDs" = list_of_sample_IDs))
+openxlsx::write.xlsx(df_annotation, file =  paste0(path,"63-samples annotation optimization - part 1 and 2-YH v3.xlsx"),
+                     colNames = TRUE,rowNames = F,borders = "surrounding")
+
+df_samples <- readxl::read_excel("doc/20220406-samples metadata RS.xlsx", sheet = "RS in vivo metadata")
+df_samples = as.data.frame(df_samples)
+colnames(df_samples) %<>% tolower()
+nrow(df_samples)
+df_samples = df_samples[order(df_samples$idx),]
+meta.data$orig.ident %<>% factor(levels = df_samples$sample)
+df <- table(meta.data$Cell_label, meta.data$orig.ident) %>% as.data.frame.matrix()
+df_colSums = colSums(df)
+df_output = df_samples[,c("sample","study group")] %>% tibble::column_to_rownames("sample") %>% t
+df_output %<>% rbind(df)
+df_output %<>% rbind( "Total cell number"=c(df_colSums))
+df_output %<>% rbind("---------------------" = NA)
+
+df1 <- table(meta.data$Cell_label, meta.data$orig.ident) %>% prop.table(margin = 2)%>% 
+    as.data.frame.matrix()
+df1[is.na(df1)] = 0
+df1 = round(df1*100, 2)
+
+df_output %<>% rbind(df1)  
+openxlsx::write.xlsx(df_output, file =  paste0(path,"20220805_annotation_part 1 and 2.xlsx"),
+                     colNames = TRUE,row.names = T,borders = "surrounding")
+
+table(Cell_label.v4 %in% df_color[,1])
+Cell_label.v4 = sort(as.character(unique(meta.data.v4$Cell_label)))
+Cell_label.v5 = sort(as.character(unique(meta.data$Cell_label)))
+
+table(Cell_label.v4 %in% Cell_label.v5)
+table(Cell_label.v5 %in% Cell_label.v4)
+Cell_label.v5[!(Cell_label.v5 %in% Cell_label.v4)]
+df_annotation1 <- readxl::read_excel("doc/63-sample Cell distribution per sample per group-YH.xlsx",
+                                    sheet = "annotations")
+
+celltype.3 = sort(unique(df_annotation1$celltype.3))
+celltype.3 = celltype.3[-which(celltype.3 %in% "Db")]
+
+df_color = meta.data.v4[!duplicated(meta.data.v4$Cell_subtype),c("Cell_subtype","Cell_subtype.colors")]
+df_color = df_color[order(df_color$Cell_subtype),]
+df_color %<>% df2list
+df_color$Cell_label.v4 = Cell_label.v4
+df_color$Cell_label.v5 = Cell_label.v5
+df_color$Cell_label.3 = celltype.3
+df_color %<>% list2df
+write.csv(df_color, file =  paste0(path,"multiple_version_Cell_label.csv"))
+
+Cell_types <- c("celltype.3.colors","celltype.2","celltype.1","Family","Superfamily","Pathology")
+for(Cell_type in Cell_types){
+    meta.data.v5[,Cell_type] = plyr::mapvalues(meta.data.v5$celltype.3,
+                                            from = pull(df_annotation1[,"celltype.3"]),
+                                            to = pull(df_annotation1[,Cell_type]))
+    meta.data.v5[,Cell_type] %<>% factor(levels = unique(pull(df_annotation1[,Cell_type])))
+}
+meta.data.v5$celltype.3 %<>% factor(levels = df_annotation1$celltype.3)
+
+saveRDS(meta.data.v5, file = "output/Lung_63_20220408_meta.data_v5.rds")

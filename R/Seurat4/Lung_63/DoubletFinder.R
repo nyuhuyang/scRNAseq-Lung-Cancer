@@ -24,7 +24,8 @@ if(!dir.exists(path))dir.create(path, recursive = T)
 # samples
 
 object = readRDS(file = "data/Lung_63_20220606.rds")
-meta.data = readRDS(file = "output/Lung_63_20220408_meta.data_v3.rds")
+meta.data = readRDS(file = "output/Lung_63_20220408_meta.data_v5.rds")
+
 table(rownames(object@meta.data) == rownames(meta.data))
 object@meta.data = meta.data
 DefaultAssay(object) = "RNA"
@@ -36,6 +37,7 @@ object %<>% RunPCA()
 object[["RNA"]]@scale.data = matrix(0,0,0) # prepare command list
 object[["SCT"]] = NULL
 object$Cell_label %<>% factor()
+GC()
 object_list <- SplitObject(object,split.by = "orig.ident")
 #remove(object);GC()
 
@@ -146,18 +148,16 @@ meta.data_list <- lapply(object_list, function(x) {
 meta.data = bind_rows(meta.data_list)
 rownames(meta.data) = meta.data$row.names
 
-object = readRDS(file = "data/Lung_63_20220606.rds")
-meta.data = meta.data[rownames(object@meta.data),]
-colnames(object@meta.data) %<>% gsub("Doublets","Doublets.old",.)
+meta.data.v5 = readRDS(file = "output/Lung_63_20220408_meta.data_v5.rds")
+
+meta.data = meta.data[rownames(meta.data.v5),]
+#colnames(meta.data.v5) %<>% gsub("Doublets","Doublets.old",.)
 meta.data$doublets = gsub("Doublet","Doublet-Low Confidence",meta.data$Low_confident_doublets)
 meta.data[meta.data$High_confident_doublets %in% "Doublet","doublets"] = "Doublet-High Confidence"
-meta.data = cbind(object@meta.data,meta.data$doublets)
-colnames(meta.data)[ncol(meta.data)] = "Doublets"
-table(meta.data$Doublets)
+table(meta.data.v5$Doublets, meta.data$Doublets)
+meta.data.v5$Doublets = meta.data$doublets
 
-
-object@meta.data = meta.data
-saveRDS(meta.data, file = "output/Lung_63_20220408_meta.data_v4.rds")
+saveRDS(meta.data.v5, file = "output/Lung_63_20220408_meta.data_v5.rds")
 
 #  cell number / cell percentage
 meta.data = readRDS(file = "output/Lung_63_20220408_meta.data_v4.rds")
