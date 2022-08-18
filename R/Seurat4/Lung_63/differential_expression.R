@@ -46,7 +46,7 @@ deg_list = list(deg1,deg2)
 names(deg_list) = c("postive","positve_negative")
 write.xlsx(deg_list, file = "output/20220327/WC_30_T_Adj_Dex_vs_Count.xlsx",
            colNames = TRUE, borders = "surrounding")
-############### step == "cell_types" ############### 
+############### step == "Cell_label" ############### 
 opts = data.frame(ident = c(rep("Cell_label",66),
                             rep("Cell_type",31),
                             rep("Family",9),
@@ -62,6 +62,42 @@ for(i in seq_along(Cell_category)){
         csv_names = list.files("output/20220616/Cell_label",pattern = Cell_category[i],full.names = T)
         all_idx = which(opts$ident %in% Cell_category[i])
         idx <- gsub("output/20220616/Cell_label/","",csv_names) %>% gsub("-.*","",.) %>% as.integer()
+        print(table(all_idx %in% idx))
+        all_idx[!all_idx %in% idx]
+        print(paste(Cell_category[i], "missing",all_idx[!(all_idx %in% idx)]))
+        deg <- pbapply::pblapply(csv_names, function(csv){
+                tmp <- read.csv(csv,row.names = 1)
+                tmp$gene = rownames(tmp)
+                tmp = tmp[order(tmp$avg_log2FC,decreasing = T),]
+                if(tmp$cluster == TRUE) tmp$cluster = "T"
+                return(tmp)
+        }) %>% bind_rows
+        deg = deg[deg$p_val_adj < 0.05,]
+        deg_list[[i]] = deg
+}
+names(deg_list) =Cell_category
+
+write.xlsx(deg_list, file = paste0(path,"Lung_63_DEG_Cell.category.xlsx"),
+           colNames = TRUE, borders = "surrounding")
+
+############### step == "celltype.3" ############### 
+opts = data.frame(ident = c(rep("celltype.3",71),
+                            rep("celltype.2",66),
+                            rep("celltype.1",32),
+                            rep("Family",10),
+                            rep("Superfamily",4)),
+                  num = c(1:71,
+                          1:66,
+                          1:32,
+                          1:10,
+                          1:4)
+)
+Cell_category = unique(opts$ident)
+deg_list <- list()
+for(i in seq_along(Cell_category)){
+        csv_names = list.files("output/20220817/celltype.3",pattern = Cell_category[i],full.names = T)
+        all_idx = which(opts$ident %in% Cell_category[i])
+        idx <- gsub("output/20220817/celltype.3/","",csv_names) %>% gsub("-.*","",.) %>% as.integer()
         print(table(all_idx %in% idx))
         all_idx[!all_idx %in% idx]
         print(paste(Cell_category[i], "missing",all_idx[!(all_idx %in% idx)]))

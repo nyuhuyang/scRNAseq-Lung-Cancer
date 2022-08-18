@@ -267,9 +267,11 @@ table(Cell_label.v5 %in% Cell_label.v4)
 Cell_label.v5[!(Cell_label.v5 %in% Cell_label.v4)]
 df_annotation1 <- readxl::read_excel("doc/63-sample Cell distribution per sample per group-YH.xlsx",
                                     sheet = "annotations")
-
+meta.data.v5 = readRDS(file = "output/Lung_63_20220408_meta.data_v5.rds")
+df_annotation1 = df_annotation1[!(df_annotation1$celltype.3 %in% "Db"),]
 celltype.3 = sort(unique(df_annotation1$celltype.3))
 celltype.3 = celltype.3[-which(celltype.3 %in% "Db")]
+
 
 df_color = meta.data.v4[!duplicated(meta.data.v4$Cell_subtype),c("Cell_subtype","Cell_subtype.colors")]
 df_color = df_color[order(df_color$Cell_subtype),]
@@ -287,6 +289,6 @@ for(Cell_type in Cell_types){
                                             to = pull(df_annotation1[,Cell_type]))
     meta.data.v5[,Cell_type] %<>% factor(levels = unique(pull(df_annotation1[,Cell_type])))
 }
+meta.data.v5$celltype.3  %<>% droplevels()
 meta.data.v5$celltype.3 %<>% factor(levels = df_annotation1$celltype.3)
-
 saveRDS(meta.data.v5, file = "output/Lung_63_20220408_meta.data_v5.rds")
