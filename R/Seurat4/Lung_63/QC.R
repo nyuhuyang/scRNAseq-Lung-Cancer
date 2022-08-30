@@ -19,7 +19,7 @@ if(!dir.exists("doc")) dir.create("doc")
 # ######################################################################
 #======1.1 Load the data files and Set up Seurat object =========================
 # read sample summary list
-df_samples <- readxl::read_excel("doc/20220406-samples metadata RS.xlsx", sheet = "RS in vivo metadata")
+df_samples <- readxl::read_excel("doc/20220406-samples metadata RS.xlsx", sheet = "invivo")
 df_samples = as.data.frame(df_samples)
 colnames(df_samples) %<>% tolower()
 nrow(df_samples)

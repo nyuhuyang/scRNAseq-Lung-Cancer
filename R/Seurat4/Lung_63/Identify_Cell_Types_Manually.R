@@ -292,3 +292,92 @@ for(Cell_type in Cell_types){
 meta.data.v5$celltype.3  %<>% droplevels()
 meta.data.v5$celltype.3 %<>% factor(levels = df_annotation1$celltype.3)
 saveRDS(meta.data.v5, file = "output/Lung_63_20220408_meta.data_v5.rds")
+
+meta.data.v5 = readRDS( "output/Lung_63_20220408_meta.data_v5.rds")
+annotations <- readxl::read_excel("doc/Annotations/annotations.xlsx")
+annotations = as.data.frame(annotations)
+colnames(annotations) %<>% tolower()
+nrow(annotations)
+
+df_annotations = data.frame("celltype" = c(annotations$celltype.1,
+                                           annotations$celltype.2,
+                                           annotations$celltype.3),
+                            "celltype.colors" = c(annotations$celltype.1.colors,
+                                                   annotations$celltype.2.colors,
+                                                   annotations$celltype.3.colors))
+df_annotations1 = df_annotations[!duplicated(df_annotations$celltype),]
+df_annotations1 = df_annotations1[order(df_annotations1$celltype),]
+df_annotations2 = df_annotations[!duplicated(df_annotations$celltype.colors),]
+df_annotations2 = df_annotations2[order(df_annotations2$celltype),]
+
+identical(df_annotations1,df_annotations2)
+table(duplicated(df_annotations1$celltype))
+
+df_samples <- readxl::read_excel("doc/20220406-samples metadata RS.xlsx", sheet = "invivo")
+df_samples = as.data.frame(df_samples)
+colnames(df_samples) %<>% tolower()
+nrow(df_samples)
+
+
+
+table(df_samples$sample %in% meta.data.v5$orig.ident)
+for(i in 1:length(df_samples$sample)){
+    cells <- meta.data.v5$orig.ident %in% df_samples$sample[i]
+    print(df_samples$sample[i])
+    print(table(cells))
+    meta.data.v5[cells,"type of sample"] = df_samples$`type of sample`[i]
+    meta.data.v5[cells,"category"] = df_samples$category[i]
+    meta.data.v5[cells,"group3"] = df_samples$group3[i]
+    meta.data.v5[cells,"group2"] = df_samples$group2[i]
+    meta.data.v5[cells,"group1"] = df_samples$group1[i]
+    meta.data.v5[cells,"group0"] = df_samples$group0[i]
+    meta.data.v5[cells,"lung disease-1"] = df_samples$`lung disease-1`[i]
+    meta.data.v5[cells,"lung disease-2"] = df_samples$`lung disease-2`[i]
+    meta.data.v5[cells,"lung disease-3"] = df_samples$`lung disease-3`[i]
+    meta.data.v5[cells,"sex"] = as.character(df_samples$sex[i])
+}
+meta.data.v5$orig.ident %<>% factor(levels = df_samples$sample)
+meta.data.v5$celltype.3.colors = plyr::mapvalues(meta.data.v5$celltype.3,
+                                                 from = df_annotations1$celltype,
+                                                 to = df_annotations1$celltype.colors)
+meta.data.v5$celltype.2.colors = plyr::mapvalues(meta.data.v5$celltype.2,
+                                                 from = df_annotations1$celltype,
+                                                 to = df_annotations1$celltype.colors)
+meta.data.v5$celltype.1.colors = plyr::mapvalues(meta.data.v5$celltype.1,
+                                                 from = df_annotations1$celltype,
+                                                 to = df_annotations1$celltype.colors)
+anyNA(meta.data.v5$celltype.3.colors)
+anyNA(meta.data.v5$celltype.2.colors)
+anyNA(meta.data.v5$celltype.1.colors)
+category <- c("P-norm",
+              "D-norm",
+              "T-norm",
+              "D-COPD",
+              "D-IPF",
+              "L-norm",
+              "L-COPD",
+              "L-COPD-Dex",
+              "L-IPF",
+              "L-IPF-norm",
+              "L-Ad",
+              "L-Sq",
+              "L-Ad-Sq")
+
+meta.data.v5$category %<>% factor(levels = category)
+meta.data.v5$category.colors <- plyr::mapvalues(meta.data.v5$category,
+                                                from = category,
+                                                to = c("#00B0F0",
+                                                       "#92D050",
+                                                       "#00B050",
+                                                       "#FCC4F5",
+                                                       "#FF9933",
+                                                       "#4472C4",
+                                                       "#AFABAB",
+                                                       "#FF6699",
+                                                       "#DAB48E",
+                                                       "#FFD966",
+                                                       "#B4C7E7",
+                                                       "#AE78D6",
+                                                       "#92C0F2"))
+
+saveRDS(meta.data.v5, file = "output/Lung_63_20220408_meta.data_v5.rds")

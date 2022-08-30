@@ -2,7 +2,7 @@ invisible(lapply(c("dplyr","magrittr","tidyr","openxlsx",#"Seurat","MAST","futur
                    "gplots"), function(x) {
                            suppressPackageStartupMessages(library(x,character.only = T))
                    }))
-
+source("https://raw.githubusercontent.com/nyuhuyang/SeuratExtra/master/R/Seurat4_functions.R")
 path <- paste0("output/",gsub("-","",Sys.Date()),"/")
 if(!dir.exists(path)) dir.create(path, recursive = T)
 #==============
@@ -115,3 +115,82 @@ names(deg_list) =Cell_category
 
 write.xlsx(deg_list, file = paste0(path,"Lung_63_DEG_Cell.category.xlsx"),
            colNames = TRUE, borders = "surrounding")
+
+############### step == "IPF" ############### 
+df_annotations <- readxl::read_excel("doc/20220816 IPF comparison.xlsx", sheet = "annotations")
+df_comparision <- readxl::read_excel("doc/20220816 IPF comparison.xlsx", sheet = "comparison")
+df_annotations %<>% tidyr::pivot_longer(everything()) %>%
+        .[!duplicated(.[,"value"]),]
+colnames(df_annotations)[1] = "type"
+df_annotations$type %<>% factor(levels = rev(c("celltype.3","celltype.2","celltype.1","Family","Superfamily")))
+df_annotations = df_annotations[order(df_annotations$type),]
+opts = df_annotations[rep(seq_len(nrow(df_annotations)),
+                          time = nrow(df_comparision)), ]
+opts_comparision = df_comparision[rep(seq_len(nrow(df_comparision)),
+                                      each = nrow(df_annotations)), ]
+opts %<>% cbind(opts_comparision)
+
+comparisions = unique(opts$sheetName)
+deg_list <- list()
+for(i in seq_along(comparisions)){
+        csv_names = list.files("output/20220817/IPF",pattern = comparisions[i],full.names = T)
+        all_idx = which(opts$sheetName %in% comparisions[i])
+        idx <- gsub("output/20220817/IPF/","",csv_names) %>% gsub("-.*","",.) %>% as.integer()
+        print(table(all_idx %in% idx))
+        #print(paste(comparisions[i], "missing",all_idx[!(all_idx %in% idx)]))
+        deg <- pbapply::pblapply(csv_names, function(csv){
+                tmp <- read.csv(csv,row.names = 1)
+                #tmp$gene = rownames(tmp)
+                tmp = tmp[order(tmp$avg_log2FC,decreasing = T),]
+                if(tmp$celltype == TRUE) tmp$celltype = "T"
+                return(tmp)
+        }) %>% bind_rows
+        deg = deg[deg$p_val_adj < 0.05,]
+        #deg = deg[deg$avg_log2FC > 0, ]
+        deg_list[[i]] = deg
+}
+names(deg_list) =1:10
+
+write.xlsx(deg_list, file = paste0(path,"Lung_63_DEGs_IPF.xlsx"),
+           colNames = TRUE, borders = "surrounding")
+
+# volcano plots
+for(i in 1:2){
+        csv_names = list.files("output/20220817/IPF",pattern = comparisions[i],full.names = T)
+        all_idx = which(opts$sheetName %in% comparisions[i])
+        idx <- gsub("output/20220817/IPF/","",csv_names) %>% gsub("-.*","",.) %>% as.integer()
+        print(table(all_idx %in% idx))
+        save.path <- paste0(path, comparisions[i],"/")
+        if(!dir.exists(save.path)) dir.create(save.path, recursive = T)
+        options(ggrepel.max.overlaps = Inf)
+        
+        #print(paste(comparisions[i], "missing",all_idx[!(all_idx %in% idx)]))
+        pbapply::pblapply(csv_names, function(csv){
+                tmp <- read.csv(csv,row.names = 1)
+                if(any(tmp$celltype == TRUE)) tmp$celltype = "T"
+                cluster = stringr::str_split(tmp$cluster[1],patter = " vs.")[[1]]
+                cluster = paste(rev(cluster),collapse = " <----    ----> ")
+                subtitle = paste(c(cluster, tmp$celltype[1]),collapse = " \n in ")
+                plot1 <- VolcanoPlots(tmp, cut_off ="p_val_adj", cut_off_value = 0.05,
+                             cut_off_logFC = 0.25,cut_off_ptc = 10, top = 10,
+                             sort.by = "p_val_adj",cols = c("#4575B4","#74ADD1","#E0F3F8","#FEE090","#F46D43"),
+                             cols.inv = FALSE, alpha=0.9, pt.size=3, font.size=18,lab.size = 4,
+                             subtitle = subtitle,inplab1 = "color text",
+                             legend.show = TRUE,legend.size = 18, legend.position = "bottom",force = 2)
+                jpeg(paste0(save.path,tmp$celltype[1],".jpg"), units="in", width=10, height=7,res=600)
+                print(plot1)
+                dev.off()
+                
+                plot2 <- VolcanoPlots(tmp, cut_off ="p_val_adj", cut_off_value = 0.05,
+                                      cut_off_logFC = 0.25,cut_off_ptc = 10, top = 10,
+                                      sort.by = "p_val_adj",cols = c("#4575B4","#74ADD1","#E0F3F8","#FEE090","#F46D43"),
+                                      cols.inv = FALSE, alpha=0.9, pt.size=3, font.size=18,lab.size = 4,
+                                      subtitle = subtitle,inplab1 = "No labels",
+                                      legend.show = TRUE,legend.size = 18, legend.position = "bottom")
+                jpeg(paste0(save.path,tmp$celltype[1],"_nolab.jpg"), units="in", width=10, height=7,res=600)
+                print(plot2)
+                dev.off()
+                
+        }) 
+}
+
