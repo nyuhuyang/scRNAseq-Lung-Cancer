@@ -1,6 +1,8 @@
 library(Seurat)
 library(magrittr)
 library(dplyr)
+library(tidyr)
+source("https://raw.githubusercontent.com/nyuhuyang/SeuratExtra/master/R/Seurat4_functions.R")
 source("https://raw.githubusercontent.com/nyuhuyang/SeuratExtra/master/R/Seurat4_differential_expression.R")
 path <- paste0("output/",gsub("-","",Sys.Date()),"/")
 if(!dir.exists(path)) dir.create(path, recursive = T)
@@ -15,7 +17,7 @@ args <- as.integer(as.character(slurm_arrayid))
 print(paste0("slurm_arrayid=",args))
 
 object = readRDS(file ="data/Lung_SCT_63_20220606.rds")
-(step = c("resolutions","Adj_Dex_Cont","celltype.3","IPF")[4])
+(step = c("resolutions","Adj_Dex_Cont","celltype.3","IPF","pairwise")[5])
 
 if(step == "resolutions"){# 32GB
     opts = data.frame(ident = c(rep("SCT_snn_res.0.01",6),
@@ -233,3 +235,112 @@ if(step == "IPF"){# 32~64GB
     write.csv(markers,paste0(save_path,arg,"-",opt$sheetName,"-",num,".",opt$type, ".csv"))
 }
 
+if(step == "pairwise"){
+    #Ad-Ca vs Ad-N
+    #Sq-Ca vs Sq-N
+    #Ad-N vs Sq-N
+    #(Ad-N-COPD and Sq-N-COPD) vs (Ad-N-no-COPD and Sq-N-no-COPD)
+    #Ad-Ca: males vs females
+    #Ad-N: males vs females
+    #Ad-N and Sq-N: males vs females
+    #All normal samples (D, T, Ad-N-no-COPD, Sq-N-no-COPD): males vs females
+    #All normal samples (D, T, Ad-N-no-COPD, Sq-N-no-COPD): age >55 years vs <45 years
+    #All normal samples (D, T, Ad-N-no-COPD, Sq-N-no-COPD): age >60 years vs <40 years
+    
+    meta.data <- readRDS(file = "output/Lung_63_20220408_meta.data_v5.rds")
+    meta.data %<>% filter(Doublets == "Singlet" & Superfamily != "Un")
+    Class <- sapply(meta.data,class)
+    Factor_class <- Class[Class == "factor"]
+    for(cl in grep("SCT_snn_",names(Factor_class),value =T, invert = T)){
+        meta.data[,cl] %<>% as.character()
+    }
+    
+    meta.data$age.bracket <- cut(meta.data$age, breaks = c(0,40,45,55,60,80))
+
+    annotations_df <- meta.data[!duplicated(meta.data$celltype.3),
+                               c("celltype.3","celltype.2","celltype.1","Family","Superfamily")]  %>%
+        pivot_longer(cols <- everything())
+    annotations_df$name %<>% factor(levels <- rev(c("Superfamily","Family",
+                                                "celltype.1","celltype.2","celltype.3")))
+    annotations_df <- annotations_df[order(annotations_df$name,annotations_df$value),]
+    annotations_df <- annotations_df[!duplicated(annotations_df$value),]
+    annotations_df %<>% as.data.frame()
+    Symbol <- unique(annotations_df$value)
+    opts <- do.call("rbind", replicate(10, annotations_df, simplify = FALSE))
+    df <- data.frame("Subset" = c("group2 %in% c('Ad-Ca','Ad-N')",
+                                  "group2 %in% c('Sq-Ca','Sq-N')",
+                                  "group2 %in% c('Ad-N','Sq-N')",
+                                  "condition %in% c('Ad-N-COPD','Sq-N-COPD','Ad-N-no-COPD','Sq-N-no-COPD')",
+                                  "group2 %in% 'Ad-Ca'",
+                                  "group2 %in% 'Ad-N'",
+                                  "group2 %in% c('Ad-N','Sq-N')",
+                                  "category %in% c('D-norm','T-norm','L-norm')",
+                                  "category %in% c('D-norm','T-norm','L-norm')",
+                                  "category %in% c('D-norm','T-norm','L-norm')"),
+                     "Ident" = c("group2","group2","group2","condition","sex","sex","sex","sex","age.bracket","age.bracket"),
+                     "ident1" = c("Ad-Ca","Sq-Ca","Ad-N","Ad-N-COPD;Sq-N-COPD","M","M","M","M","(55,60];(60,80]","(60,80]"),
+                     "ident2" = c("Ad-N","Sq-N","Sq-N","Ad-N-no-COPD;Sq-N-no-COPD","F","F","F","F","(0,40];(40,45]","(0,40]"),
+                     "group"  = LETTERS[2:11])
+    df <- df[rep(seq_len(nrow(df)), each = 99), ]
+    opts <- cbind(opts, df)
+    
+    opt = opts[args,]
+    print(opt)
+    
+    #==========================
+    opt$ident1 %>% strsplit(split = ";") %>% .[[1]] -> ident.1
+    opt$ident2 %>% strsplit(split = ";") %>% .[[1]] -> ident.2
+    celltype <- as.character(opt$name)
+    select_id <- meta.data %>% dplyr::filter(!!as.name(celltype) %in% opt$value) %>% 
+        dplyr::filter(eval(parse(text = opt$Subset)))
+    
+    
+    ident.1 = ident.1[ident.1 %in% object$orig.ident]
+    ident.2 = ident.2[ident.2 %in% object$orig.ident]
+    
+    select_id[,opt$Ident] %in% ident.1 %>% which %>% length -> ident.1.num
+    select_id[,opt$Ident] %in% ident.2 %>% which %>% length -> ident.2.num
+    cellNumber =paste0(opt$ident1, " = ", ident.1.num,", ",
+                       opt$ident2, " = ",ident.2.num)
+    print(cellNumber)
+    
+    object %<>% subset(cells %in% rownames(select_id))
+    
+    if(all(colnames(object) == rownames(select_id))){
+        print("all cellID match!")
+        object@meta.data = select_id
+    }
+    
+    Idents(object) = opt$Ident
+    
+    
+    markers = FindMarkers_UMI(object, 
+                              ident.1 = ident.1,
+                              ident.2 = ident.2,
+                              group.by = opt$Ident,
+                              assay = "SCT",
+                              min.pct = 0.01,
+                              logfc.threshold = 0.05,
+                              only.pos = F#,
+                              #test.use = "MAST",
+                              #latent.vars = "nFeature_SCT"
+    )
+    if(!exists("markers")) markers = data.frame("p_val"=NA, "avg_log2FC" = NA, "pct.1"=NA, "pct.2" = NA, "p_val_adj"=NA,
+                                                row.names = "NA")
+    markers$gene = rownames(markers)
+    markers$Cell_category = opt$name
+    markers$celltype = opt$value
+    markers$Subset = opt$Subset
+    markers$ident1 = paste(ident.1,collapse = ";")
+    markers$ident2 = paste(ident.2,collapse = ";")
+    markers$number = cellNumber
+
+    arg = args
+    if(args < 10) arg = paste0("0",arg)
+    if(args < 100) arg = paste0("0",arg)
+    
+    save_path <- paste0(path,opt$group,"/")
+    if(!dir.exists(save_path)) dir.create(save_path, recursive = T)
+    
+    write.csv(markers,paste0(save_path,arg,"-",opt$name,"-",opt$value, ".csv"))
+}

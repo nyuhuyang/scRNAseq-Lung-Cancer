@@ -265,22 +265,12 @@ Cell_label.v5 = sort(as.character(unique(meta.data$Cell_label)))
 table(Cell_label.v4 %in% Cell_label.v5)
 table(Cell_label.v5 %in% Cell_label.v4)
 Cell_label.v5[!(Cell_label.v5 %in% Cell_label.v4)]
-df_annotation1 <- readxl::read_excel("doc/63-sample Cell distribution per sample per group-YH.xlsx",
+df_annotation1 <- readxl::read_excel("doc/Annotations/annotations.xlsx",
                                     sheet = "annotations")
 meta.data.v5 = readRDS(file = "output/Lung_63_20220408_meta.data_v5.rds")
 df_annotation1 = df_annotation1[!(df_annotation1$celltype.3 %in% "Db"),]
 celltype.3 = sort(unique(df_annotation1$celltype.3))
 celltype.3 = celltype.3[-which(celltype.3 %in% "Db")]
-
-
-df_color = meta.data.v4[!duplicated(meta.data.v4$Cell_subtype),c("Cell_subtype","Cell_subtype.colors")]
-df_color = df_color[order(df_color$Cell_subtype),]
-df_color %<>% df2list
-df_color$Cell_label.v4 = Cell_label.v4
-df_color$Cell_label.v5 = Cell_label.v5
-df_color$Cell_label.3 = celltype.3
-df_color %<>% list2df
-write.csv(df_color, file =  paste0(path,"multiple_version_Cell_label.csv"))
 
 Cell_types <- c("celltype.3.colors","celltype.2","celltype.1","Family","Superfamily","Pathology")
 for(Cell_type in Cell_types){
@@ -379,5 +369,6 @@ meta.data.v5$category.colors <- plyr::mapvalues(meta.data.v5$category,
                                                        "#B4C7E7",
                                                        "#AE78D6",
                                                        "#92C0F2"))
-
+meta.data.v5$condition %<>% gsub("D-norm","Normal",.)
 saveRDS(meta.data.v5, file = "output/Lung_63_20220408_meta.data_v5.rds")
+
