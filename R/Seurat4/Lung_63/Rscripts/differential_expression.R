@@ -251,7 +251,7 @@ if(step == "pairwise"){
     meta.data %<>% filter(Doublets == "Singlet" & Superfamily != "Un")
     Class <- sapply(meta.data,class)
     Factor_class <- Class[Class == "factor"]
-    for(cl in grep("SCT_snn_",names(Factor_class),value =T, invert = T)){
+    for(cl in names(Factor_class)){
         meta.data[,cl] %<>% as.character()
     }
     
@@ -265,19 +265,18 @@ if(step == "pairwise"){
     annotations_df <- annotations_df[order(annotations_df$name,annotations_df$value),]
     annotations_df <- annotations_df[!duplicated(annotations_df$value),]
     annotations_df %<>% as.data.frame()
-    Symbol <- unique(annotations_df$value)
     opts <- do.call("rbind", replicate(10, annotations_df, simplify = FALSE))
     df <- data.frame("Subset" = c("group2 %in% c('Ad-Ca','Ad-N')",
                                   "group2 %in% c('Sq-Ca','Sq-N')",
                                   "group2 %in% c('Ad-N','Sq-N')",
-                                  "condition %in% c('Ad-N-COPD','Sq-N-COPD','Ad-N-no-COPD','Sq-N-no-COPD')",
+                                  "group3 %in% c('Ad-N-COPD','Sq-N-COPD','Ad-N-no-COPD','Sq-N-no-COPD')",
                                   "group2 %in% 'Ad-Ca'",
                                   "group2 %in% 'Ad-N'",
                                   "group2 %in% c('Ad-N','Sq-N')",
                                   "category %in% c('D-norm','T-norm','L-norm')",
                                   "category %in% c('D-norm','T-norm','L-norm')",
                                   "category %in% c('D-norm','T-norm','L-norm')"),
-                     "Ident" = c("group2","group2","group2","condition","sex","sex","sex","sex","age.bracket","age.bracket"),
+                     "Ident" = c("group2","group2","group2","group3","sex","sex","sex","sex","age.bracket","age.bracket"),
                      "ident1" = c("Ad-Ca","Sq-Ca","Ad-N","Ad-N-COPD;Sq-N-COPD","M","M","M","M","(55,60];(60,80]","(60,80]"),
                      "ident2" = c("Ad-N","Sq-N","Sq-N","Ad-N-no-COPD;Sq-N-no-COPD","F","F","F","F","(0,40];(40,45]","(0,40]"),
                      "group"  = LETTERS[2:11])
@@ -294,17 +293,13 @@ if(step == "pairwise"){
     select_id <- meta.data %>% dplyr::filter(!!as.name(celltype) %in% opt$value) %>% 
         dplyr::filter(eval(parse(text = opt$Subset)))
     
-    
-    ident.1 = ident.1[ident.1 %in% object$orig.ident]
-    ident.2 = ident.2[ident.2 %in% object$orig.ident]
-    
     select_id[,opt$Ident] %in% ident.1 %>% which %>% length -> ident.1.num
     select_id[,opt$Ident] %in% ident.2 %>% which %>% length -> ident.2.num
     cellNumber =paste0(opt$ident1, " = ", ident.1.num,", ",
                        opt$ident2, " = ",ident.2.num)
     print(cellNumber)
     
-    object %<>% subset(cells %in% rownames(select_id))
+    object <- object[,rownames(select_id)]
     
     if(all(colnames(object) == rownames(select_id))){
         print("all cellID match!")
@@ -312,6 +307,8 @@ if(step == "pairwise"){
     }
     
     Idents(object) = opt$Ident
+    ident.1 = ident.1[ident.1 %in% Idents(object)]
+    ident.2 = ident.2[ident.2 %in% Idents(object)]
     
     
     markers = FindMarkers_UMI(object, 

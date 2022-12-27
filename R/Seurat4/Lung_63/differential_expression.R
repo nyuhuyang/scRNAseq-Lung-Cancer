@@ -194,3 +194,38 @@ for(i in 1:2){
         }) 
 }
 
+############### step == "pairwise" ############### 
+xlx_file <- list.files("output/20221221/A.All samples combined",pattern = ".xlsx",full.names = TRUE)
+degs_combine <- pbapply::pblapply(xlx_file,function(x) {
+    tmp <- readxl::read_excel(x)
+    tmp$Cell_category <- basename(x) %>% sub("2022-12-19-","",.) %>% sub("_combined.*","",.)
+    colnames(tmp) <- c("celltype","gene","scores","avg_log2FC","p_val","p_val_adj","pts","pts_rest","Cell_category")
+    tmp <- tmp[,c("p_val","avg_log2FC","pts","pts_rest","p_val_adj","scores","gene","celltype","Cell_category")]
+    tmp <- tmp[order(tmp$avg_log2FC,decreasing = TRUE),]
+    tmp
+}) %>% bind_rows()
+
+degs_combine %<>% filter(p_val_adj < 0.05)
+
+openxlsx::write.xlsx(degs_combine, file =  paste0(path,"A.All samples combined.xlsx"),
+                     colNames = TRUE,rowNames = FALSE,borders = "surrounding")
+########
+csv_files <- list.files("output/20221221",pattern = ".csv",recursive = TRUE,full.names = TRUE)
+
+degs <- pbapply::pblapply(csv_files,function(x) {
+    tmp <- read.csv(x,row.names = 1)
+    tmp$celltype %<>% as.character()
+    tmp$ident1 %<>% as.character()
+    tmp$ident2 %<>% as.character()
+    tmp$group <- sub("output/20221221/","",x) %>% sub("/.*","",.) %>% as.character()
+    tmp <- tmp[order(tmp$avg_log2FC,decreasing = TRUE),]
+    tmp
+}) %>% bind_rows()
+degs$ident2 %<>% gsub("FALSE","F",.)
+degs$celltype %<>% gsub("TRUE","T",.)
+
+degs %<>% filter(p_val_adj < 0.05)
+
+deg_list <- split(degs,f = degs$group)
+openxlsx::write.xlsx(deg_list, file =  paste0(path,"BtoK_pairwise_DEGs.xlsx"),
+                     colNames = TRUE,rowNames = FALSE,borders = "surrounding")
