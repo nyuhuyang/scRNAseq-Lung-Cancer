@@ -5,7 +5,7 @@ invisible(lapply(c("dplyr","magrittr","tidyr","openxlsx",#"Seurat","MAST","futur
 source("https://raw.githubusercontent.com/nyuhuyang/SeuratExtra/master/R/Seurat4_functions.R")
 path <- paste0("output/",gsub("-","",Sys.Date()),"/")
 if(!dir.exists(path)) dir.create(path, recursive = T)
-#==============
+############### step = "resolutions" ############### 
 csv_names = paste0("SCT_snn_res.",c(0.01, 0.1, 0.2, 0.5, 0.8, 0.9, 1, 2, 3,4,5))
 csv_index = list.files("output/20220429",pattern = ".csv") %>% gsub("_.*","",.) %>% as.integer()
 table(1:879 %in% csv_index)
@@ -29,7 +29,8 @@ deg_list = split(deg, f = deg$resolution)
 write.xlsx(deg_list, file = paste0(path,"Lung_63_DEG.xlsx"),
            colNames = TRUE, borders = "surrounding")
 
-#===========================================================
+############### step = "Adj_Dex_Cont" ############### 
+
 csv_names = list.files("output/20220327/Cell_subtype",pattern = ".csv")
 deg_list <- pbapply::pblapply(csv_names, function(csv){
         tmp <- read.csv(paste0("output/20220327/Cell_subtype/",csv),row.names = 1)
@@ -95,9 +96,9 @@ opts = data.frame(ident = c(rep("celltype.3",71),
 Cell_category = unique(opts$ident)
 deg_list <- list()
 for(i in seq_along(Cell_category)){
-        csv_names = list.files("output/20220817/celltype.3",pattern = Cell_category[i],full.names = T)
+        csv_names = list.files("output/20221230/celltype.3",pattern = Cell_category[i],full.names = T)
         all_idx = which(opts$ident %in% Cell_category[i])
-        idx <- gsub("output/20220817/celltype.3/","",csv_names) %>% gsub("-.*","",.) %>% as.integer()
+        idx <- gsub("output/20221230/celltype.3/","",csv_names) %>% gsub("-.*","",.) %>% as.integer()
         print(table(all_idx %in% idx))
         all_idx[!all_idx %in% idx]
         print(paste(Cell_category[i], "missing",all_idx[!(all_idx %in% idx)]))
@@ -210,14 +211,14 @@ degs_combine %<>% filter(p_val_adj < 0.05)
 openxlsx::write.xlsx(degs_combine, file =  paste0(path,"A.All samples combined.xlsx"),
                      colNames = TRUE,rowNames = FALSE,borders = "surrounding")
 ########
-csv_files <- list.files("output/20221221",pattern = ".csv",recursive = TRUE,full.names = TRUE)
+csv_files <- list.files("output/20221228",pattern = ".csv",recursive = TRUE,full.names = TRUE)
 
 degs <- pbapply::pblapply(csv_files,function(x) {
     tmp <- read.csv(x,row.names = 1)
     tmp$celltype %<>% as.character()
     tmp$ident1 %<>% as.character()
     tmp$ident2 %<>% as.character()
-    tmp$group <- sub("output/20221221/","",x) %>% sub("/.*","",.) %>% as.character()
+    tmp$group <- sub("output/20221228/","",x) %>% sub("/.*","",.) %>% as.character()
     tmp <- tmp[order(tmp$avg_log2FC,decreasing = TRUE),]
     tmp
 }) %>% bind_rows()

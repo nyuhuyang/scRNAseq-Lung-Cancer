@@ -16,8 +16,8 @@ if (length(slurm_arrayid)!=1)  stop("Exact one argument must be supplied!")
 args <- as.integer(as.character(slurm_arrayid))
 print(paste0("slurm_arrayid=",args))
 
-object = readRDS(file ="data/Lung_SCT_63_20220606.rds")
-(step = c("resolutions","Adj_Dex_Cont","celltype.3","IPF","pairwise")[5])
+object = readRDS(file ="data/Lung_SCT_63_20221226.rds")
+(step = c("resolutions","Adj_Dex_Cont","celltype.3","IPF","pairwise","pairwise_celltype")[6])
 
 if(step == "resolutions"){# 32GB
     opts = data.frame(ident = c(rep("SCT_snn_res.0.01",6),
@@ -105,7 +105,7 @@ if(step == "Adj_Dex_Cont"){# 32~64GB
 
 
 if(step == "celltype.3"){# 32~64GB
-    meta.data = readRDS(file = "output/Lung_63_20220408_meta.data_v5.rds")
+    meta.data <- readRDS(file = "output/Lung_63_20220408_meta.data_v5.rds")
     table(rownames(object@meta.data) == rownames(meta.data))
     
     object@meta.data = meta.data
@@ -341,3 +341,62 @@ if(step == "pairwise"){
     
     write.csv(markers,paste0(save_path,arg,"-",opt$name,"-",opt$value, ".csv"))
 }
+if(step == "pairwise_celltype"){
+    #AT2-ca vs AT2 (cell type 1 level) in all 63 samples
+    
+    #TASC-ab-f (both 1 and 2) vs TASC-n (cell type 3 level) also in all 63 samples.
+
+    df <- data.frame("Subset" = c("celltype.1 %in% c('AT2-ca','AT2')",
+                                  "celltype.3 %in% c('TASC-ab-f1','TASC-ab-f2','TASC-n')"),
+                     "Ident" = c("celltype.1","celltype.3"),
+                     "ident1" = c("AT2-ca","TASC-ab-f1;TASC-ab-f1"),
+                     "ident2" = c("AT2","TASC-n"))
+    opt = df[args,]
+    print(opt)
+    
+    #==========================
+    opt$ident1 %>% strsplit(split = ";") %>% .[[1]] -> ident.1
+    opt$ident2 %>% strsplit(split = ";") %>% .[[1]] -> ident.2
+    select_id <- meta.data %>% dplyr::filter(eval(parse(text = opt$Subset)))
+    
+    select_id[,opt$Ident] %in% ident.1 %>% which %>% length -> ident.1.num
+    select_id[,opt$Ident] %in% ident.2 %>% which %>% length -> ident.2.num
+    cellNumber =paste0(opt$ident1, " = ", ident.1.num,", ",
+                       opt$ident2, " = ",ident.2.num)
+    print(cellNumber)
+    
+    object <- object[,rownames(select_id)]
+    
+    if(all(colnames(object) == rownames(select_id))){
+        print("all cellID match!")
+        object@meta.data = select_id
+    }
+    
+    Idents(object) = opt$Ident
+    ident.1 = ident.1[ident.1 %in% Idents(object)]
+    ident.2 = ident.2[ident.2 %in% Idents(object)]
+    
+    
+    markers = FindMarkers_UMI(object, 
+                              ident.1 = ident.1,
+                              ident.2 = ident.2,
+                              group.by = opt$Ident,
+                              assay = "SCT",
+                              min.pct = 0.01,
+                              logfc.threshold = 0.05,
+                              only.pos = F#,
+                              #test.use = "MAST",
+                              #latent.vars = "nFeature_SCT"
+    )
+    if(!exists("markers")) markers = data.frame("p_val"=NA, "avg_log2FC" = NA, "pct.1"=NA, "pct.2" = NA, "p_val_adj"=NA,
+                                                row.names = "NA")
+    markers$gene = rownames(markers)
+    markers$Cell_category = opt$Ident
+    markers$Subset = opt$Subset
+    markers$ident1 = paste(ident.1,collapse = ";")
+    markers$ident2 = paste(ident.2,collapse = ";")
+    markers$number = cellNumber
+    
+    write.csv(markers,paste0(path,args,"-",opt$Ident,"-",opt$ident1,"_vs_",opt$ident2, ".csv"))
+}
+

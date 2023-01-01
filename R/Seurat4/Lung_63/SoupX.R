@@ -23,14 +23,15 @@ adj.matrix_list <- pbapply::pblapply(df_samples$sample.id, function(s){
     soup.channel  <- SoupChannel(raw.matrix, filt.matrix)
     
     obj <- CreateSeuratObject(filt.matrix,min.cells = 0,names.delim = "-",min.features = 0) %>%
-        SCTransform(method = "glmGamPoi",verbose = FALSE) %>%
-        #FindVariableFeatures(verbose = FALSE) %>%
+        NormalizeData(verbose = FALSE) %>%
+        FindVariableFeatures(verbose = FALSE) %>%
+        ScaleData(verbose = FALSE) %>%
         RunPCA(verbose = FALSE) %>%
         FindNeighbors(reduction = "pca",dims = 1:30) %>%
         FindClusters(resolution = 0.8, algorithm = 1,verbose = F)
     
     
-    soup.channel  <- setClusters(soup.channel, setNames(obj$SCT_snn_res.0.8, colnames(obj)))
+    soup.channel  <- setClusters(soup.channel, setNames(obj$RNA_snn_res.0.8, colnames(obj)))
     soup.channel  <- autoEstCont(soup.channel, priorRhoStdDev = 0.3)
     adj.matrix  <- adjustCounts(soup.channel, roundToInt = T)
     return(adj.matrix)
@@ -55,10 +56,10 @@ message("mito.genes:")
 (mito.features <- grep(pattern = mito, x = rownames(object), value = TRUE))
 object[["percent.mt"]] <- PercentageFeatureSet(object = object, pattern = mito)
 
-format(object.size(object)*60,unit = "GB")
-options(future.globals.maxSize= object.size(object)*60)
+format(object.size(object)*50,unit = "GB") # need 400GB
+options(future.globals.maxSize= object.size(object)*50)
 object %<>% SCTransform(method = "glmGamPoi", vars.to.regress = "percent.mt", verbose = TRUE)
-object[["SCT"]]@scale.data = matrix(0,0,0)
+#object[["SCT"]]@scale.data = matrix(0,0,0)
 
 object_orig <- readRDS(file ="data/Lung_SCT_63_20220606.rds")
 table(colnames(object) == colnames(object_orig))
@@ -91,7 +92,6 @@ format(object.size(object@assays$RNA),unit = "GB")
 object@assays[["RNA"]] = NULL
 format(object.size(object),unit = "GB")
 
-object[['RNA']]@scale.data = matrix(0,0,0)
 object[["SCT"]]@scale.data = matrix(0,0,0)
 object[["SCT"]]@counts = matrix(0,0,0)
 object[["SCT"]]@SCTModel.list = list()
